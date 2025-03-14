@@ -1,10 +1,21 @@
 #include "timer.h"
 
-#include <iostream>
-#include <vector>
-#include <thread>
-#include <random>
 #include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <random>
+#include <thread>
+#include <vector>
+
+/*----------------------------------------------------------------------------*/
+
+template < typename T >
+inline void doNotOptimize ( T const & value )
+{
+    asm volatile( "" : : "r,m"(value) : "memory" );
+}
+
+/*----------------------------------------------------------------------------*/
 
 using Matrix = std::vector< std::vector< int > >;
 
@@ -71,15 +82,14 @@ countWithContainer ( const Matrix& matrix, int threshold, int numThreads )
 long long
 countWithLocalCounter ( const Matrix& matrix, int threshold, int numThreads )
 {
-    int numRows = static_cast<int>(matrix.size());
+    int numRows = static_cast< int >( matrix.size() );
+
     std::atomic<long long> globalCount(0);
     std::vector<std::thread> threads;
     threads.reserve( numThreads );
 
-    std::vector< int > result( numThreads, 0 );
-
     // Determine chunk size (round up)
-    int chunkSize = (numRows + numThreads - 1) / numThreads;
+    int chunkSize = ( numRows + numThreads - 1 ) / numThreads;
 
     for (int t = 0; t < numThreads; ++t )
     {
@@ -98,9 +108,7 @@ countWithLocalCounter ( const Matrix& matrix, int threshold, int numThreads )
                 }
             }
             // Atomically add the local counter to the global counter.
-            globalCount.fetch_add(localCount, std::memory_order_relaxed);
-
-            // result[ t ] = localCount;
+            globalCount.fetch_add( localCount, std::memory_order_relaxed );
         } );
     }
 
@@ -109,34 +117,151 @@ countWithLocalCounter ( const Matrix& matrix, int threshold, int numThreads )
         th.join();
     }
 
-    // long long sum = 0;
-    // for ( auto c: result )
-    // {
-    //     sum += c;
-    // }
-    // return sum;
-
     return globalCount.load();
 }
 
-int main()
+/*----------------------------------------------------------------------------*/
+
+// compute the average duration (in microseconds),
+// and then write the results to a CSV file.
+void runBenchmarks (
+        const Matrix& image
+    ,   int threshold
+    ,   int maxThreads = 10
+    ,   int iterations = 20
+)
 {
-    const int rows = 10000;
-    const int cols = 10000;
-    const int numThreads = 16;
-    const int threshold = 128;
+    std::vector<double> timesContainer( maxThreads, 0.0 );
+    std::vector<double> timesLocal( maxThreads, 0.0 );
 
-    Matrix image = generateMatrix( rows, cols );
+    // Volatile sinks to prevent compiler optimization.
+    volatile long long sinkContainer = 0;
+    volatile long long sinkLocal = 0;
 
+    for (int numThreads = 1; numThreads <= maxThreads; ++numThreads)
     {
-        Timer< std::micro > timer( "countWithContainer" );
-        long long count1 = countWithContainer(image, threshold, numThreads);
+        double totalTimeContainer = 0.0;
+        double totalTimeLocal = 0.0;
+        for (int iter = 0; iter < iterations; ++iter)
+        {
+            {
+                // Matrix image = generateMatrix(1000, 1000);
+                Timer<std::micro> timer("countWithContainer");
+                auto res = countWithContainer(image, threshold, numThreads);
+                // sinkContainer += res;
+                doNotOptimize(res);
+                totalTimeContainer += timer.stop();
+            }
+            {
+                // Matrix image = generateMatrix(1000, 1000);
+                Timer<std::micro> timer("countWithLocalCounter");
+                auto res = countWithLocalCounter(image, threshold, numThreads);
+                // sinkLocal += res;
+                doNotOptimize(res);
+                totalTimeLocal += timer.stop();
+            }
+        }
+        // Compute average times
+        timesContainer[ numThreads - 1 ] = totalTimeContainer / iterations;
+        timesLocal[ numThreads - 1 ] = totalTimeLocal / iterations;
     }
 
-    {
-        Timer< std::micro > timer( "countWithLocalCounter" );
-        long long count1 = countWithLocalCounter(image, threshold, numThreads);
+    // Construct output filename based on processor architecture.
+    std::string arch = "MacOsM1";
+    std::string filename = "benchmarks_" + arch + ".csv";
+    std::ofstream ofs(filename);
+    if (!ofs) {
+        std::cerr << "Error: cannot open file " << filename << " for writing.\n";
+        return;
     }
 
+    // Write CSV file:
+    // First row: header with thread counts
+    ofs << "ThreadCount";
+    for (int t = 1; t <= maxThreads; ++t) {
+        ofs << "," << t;
+    }
+    ofs << "\n";
+
+    // Second row: times for countWithContainer.
+    ofs << "Container";
+    for (int t = 0; t < maxThreads; ++t) {
+        ofs << "," << timesContainer[t];
+    }
+    ofs << "\n";
+
+    // Third row: times for countWithLocalCounter.
+    ofs << "LocalCounter";
+    for (int t = 0; t < maxThreads; ++t) {
+        ofs << "," << timesLocal[t];
+    }
+    ofs << "\n";
+
+    ofs.close();
+    std::cout << "Benchmark results written to " << filename << std::endl;
+}
+
+int main ( int argc, char* argv[] )
+{
+    const int defaultRows = 1000;
+    const int defaultCols = 1000;
+    const int defaultMaxThreads = 30;
+    const int threshold = 128;  // Hardcoded threshold.
+    const int iterations = 20;  // Hardcoded number of iterations per thread count.
+
+    // Check if benchmark mode is requested.
+    if (argc > 1 && std::strcmp(argv[1], "benchmark") == 0) {
+        // Use default values.
+        int maxThreads = defaultMaxThreads;
+        int rows = defaultRows;
+        int cols = defaultCols;
+
+        // Parse named parameters.
+        for (int i = 2; i < argc; ++i)
+        {
+            std::string arg = argv[i];
+            if (arg == "--threads" && (i + 1) < argc)
+            {
+                maxThreads = std::stoi(argv[++i]);
+            }
+            else if (arg == "--rows" && (i + 1) < argc)
+            {
+                rows = std::stoi(argv[++i]);
+            }
+            else if ( arg == "--cols" && (i + 1) < argc )
+            {
+                cols = std::stoi(argv[++i]);
+            }
+        }
+
+        std::cout
+            << "Running benchmarks with rows=" << rows
+            << ", cols=" << cols
+            << ", maxThreads=" << maxThreads
+            << ", iterations=" << iterations << std::endl
+        ;
+
+        // Generate a deterministic matrix.
+        Matrix image = generateMatrix(rows, cols);
+
+        // Run the benchmarks.
+        runBenchmarks(image, threshold, maxThreads, iterations);
+    }
+    else
+    {
+        const int numThreads = 10;
+
+        Matrix image = generateMatrix( defaultRows, defaultCols );
+
+        {
+            Timer< std::micro > timer( "countWithContainer" );
+            long long count1 = countWithContainer(image, threshold, numThreads);
+        }
+
+        {
+            Timer< std::micro > timer( "countWithLocalCounter" );
+            long long count1 = countWithLocalCounter(image, threshold, numThreads);
+        }
+    }
     return 0;
 }
