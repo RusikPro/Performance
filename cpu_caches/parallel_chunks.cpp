@@ -32,6 +32,25 @@ Matrix generateMatrix ( int rows, int cols )
     return matrix;
 }
 
+Matrix generateRandomMatrix(int rows, int cols)
+{
+    Matrix matrix(rows, std::vector<int>(cols, 0));
+    // Create a random number generator and a uniform distribution [0, 255].
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dist(0, 255);
+
+    for (int i = 0; i < rows; ++i)
+    {
+        for (int j = 0; j < cols; ++j)
+        {
+            matrix[i][j] = dist(gen);
+        }
+    }
+    return matrix;
+}
+
+/*----------------------------------------------------------------------------*/
 
 long long
 countWithContainer ( const Matrix& matrix, int threshold, int numThreads )
@@ -122,6 +141,19 @@ countWithLocalCounter ( const Matrix& matrix, int threshold, int numThreads )
 
 /*----------------------------------------------------------------------------*/
 
+double computeStdDev ( std::vector< double > const & values, double avg )
+{
+    double sumSq = 0.0;
+    for ( double v : values )
+    {
+        double diff = v - avg;
+        sumSq += diff * diff;
+    }
+    return std::sqrt(sumSq / values.size());
+}
+
+/*----------------------------------------------------------------------------*/
+
 // compute the average duration (in microseconds),
 // and then write the results to a CSV file.
 void runBenchmarks (
@@ -129,41 +161,60 @@ void runBenchmarks (
     ,   int threshold
     ,   int maxThreads = 10
     ,   int iterations = 20
+    ,   int rows = 1000
+    ,   int cols = 1000
 )
 {
-    std::vector<double> timesContainer( maxThreads, 0.0 );
-    std::vector<double> timesLocal( maxThreads, 0.0 );
+    std::vector<std::vector<double>> containerTimes(maxThreads); // index 0 corresponds to 1 thread, etc.
+    std::vector<std::vector<double>> localTimes(maxThreads);
 
-    // Volatile sinks to prevent compiler optimization.
-    volatile long long sinkContainer = 0;
-    volatile long long sinkLocal = 0;
 
     for (int numThreads = 1; numThreads <= maxThreads; ++numThreads)
     {
-        double totalTimeContainer = 0.0;
-        double totalTimeLocal = 0.0;
         for (int iter = 0; iter < iterations; ++iter)
         {
             {
-                // Matrix image = generateMatrix(1000, 1000);
-                Timer<std::micro> timer("countWithContainer");
+                Matrix image = generateRandomMatrix(rows, cols);
+                Timer< std::micro > timer("countWithContainer");
+
                 auto res = countWithContainer(image, threshold, numThreads);
-                // sinkContainer += res;
                 doNotOptimize(res);
-                totalTimeContainer += timer.stop();
+
+                auto t = timer.stop();
+                containerTimes[ numThreads - 1 ].push_back( t );
             }
             {
-                // Matrix image = generateMatrix(1000, 1000);
-                Timer<std::micro> timer("countWithLocalCounter");
+                Matrix image = generateRandomMatrix(1000, 1000);
+                Timer< std::micro > timer("countWithLocalCounter");
+
                 auto res = countWithLocalCounter(image, threshold, numThreads);
-                // sinkLocal += res;
                 doNotOptimize(res);
-                totalTimeLocal += timer.stop();
+
+                auto t = timer.stop();
+                localTimes[ numThreads - 1 ].push_back( t );
             }
         }
-        // Compute average times
-        timesContainer[ numThreads - 1 ] = totalTimeContainer / iterations;
-        timesLocal[ numThreads - 1 ] = totalTimeLocal / iterations;
+    }
+
+    // Prepare vectors to store averages and standard deviations.
+    std::vector<double> containerAvg(maxThreads, 0.0);
+    std::vector<double> containerStd(maxThreads, 0.0);
+    std::vector<double> localAvg(maxThreads, 0.0);
+    std::vector<double> localStd(maxThreads, 0.0);
+
+    for (int i = 0; i < maxThreads; ++i)
+    {
+        double sumC = 0.0;
+        for (double t : containerTimes[i])
+            sumC += t;
+        containerAvg[i] = sumC / iterations;
+        containerStd[i] = computeStdDev(containerTimes[i], containerAvg[i]);
+
+        double sumL = 0.0;
+        for (double t : localTimes[i])
+            sumL += t;
+        localAvg[i] = sumL / iterations;
+        localStd[i] = computeStdDev(localTimes[i], localAvg[i]);
     }
 
     // Construct output filename based on processor architecture.
@@ -175,26 +226,35 @@ void runBenchmarks (
         return;
     }
 
-    // Write CSV file:
-    // First row: header with thread counts
+    // Write CSV file.
+    // Header row: ThreadCount,1,2,...,maxThreads
     ofs << "ThreadCount";
-    for (int t = 1; t <= maxThreads; ++t) {
+    for (int t = 1; t <= maxThreads; ++t)
         ofs << "," << t;
-    }
     ofs << "\n";
 
-    // Second row: times for countWithContainer.
-    ofs << "Container";
-    for (int t = 0; t < maxThreads; ++t) {
-        ofs << "," << timesContainer[t];
-    }
+    // Row for ContainerAvg.
+    ofs << "ContainerAvg";
+    for (double v : containerAvg)
+        ofs << "," << v;
     ofs << "\n";
 
-    // Third row: times for countWithLocalCounter.
-    ofs << "LocalCounter";
-    for (int t = 0; t < maxThreads; ++t) {
-        ofs << "," << timesLocal[t];
-    }
+    // Row for ContainerStd.
+    ofs << "ContainerStd";
+    for (double v : containerStd)
+        ofs << "," << v;
+    ofs << "\n";
+
+    // Row for LocalCounterAvg.
+    ofs << "LocalCounterAvg";
+    for (double v : localAvg)
+        ofs << "," << v;
+    ofs << "\n";
+
+    // Row for LocalCounterStd.
+    ofs << "LocalCounterStd";
+    for (double v : localStd)
+        ofs << "," << v;
     ofs << "\n";
 
     ofs.close();
@@ -246,7 +306,7 @@ int main ( int argc, char* argv[] )
         Matrix image = generateMatrix(rows, cols);
 
         // Run the benchmarks.
-        runBenchmarks(image, threshold, maxThreads, iterations);
+        runBenchmarks( image, threshold, maxThreads, iterations, rows, cols );
     }
     else
     {
