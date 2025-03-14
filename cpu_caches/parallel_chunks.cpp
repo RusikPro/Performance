@@ -210,7 +210,8 @@ int main ( int argc, char* argv[] )
     const int iterations = 20;  // Hardcoded number of iterations per thread count.
 
     // Check if benchmark mode is requested.
-    if (argc > 1 && std::strcmp(argv[1], "benchmark") == 0) {
+    if (argc > 1 && std::string(argv[1]) == "benchmark" )
+    {
         // Use default values.
         int maxThreads = defaultMaxThreads;
         int rows = defaultRows;
