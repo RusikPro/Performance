@@ -6,3 +6,5 @@ private/
 
 *.dSYM/
 *.csv
+
+env/

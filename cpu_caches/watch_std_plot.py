@@ -12,7 +12,7 @@ def read_and_plot(filename, ax):
     Assumes the file has the following structure:
       Row 0: "ThreadCount", t1, t2, ..., tN
       Row 1: "ContainerStd", std1, std2, ..., stdN
-      Row 2: "LocalCounterStd", std1, std2, ..., stdN
+      Row 3: "LocalCounterStd", std1, std2, ..., stdN
     """
     try:
         df = pd.read_csv(filename, header=None)
@@ -23,7 +23,7 @@ def read_and_plot(filename, ax):
     try:
         thread_counts = list(map(int, df.iloc[0, 1:].tolist()))
         container_std = list(map(float, df.iloc[1, 1:].tolist()))
-        localcounter_std = list(map(float, df.iloc[2, 1:].tolist()))
+        localcounter_std = list(map(float, df.iloc[3, 1:].tolist()))
     except Exception as e:
         print(f"Error processing CSV data: {e}")
         return
