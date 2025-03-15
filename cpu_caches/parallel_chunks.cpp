@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <thread>
 #include <vector>
@@ -21,21 +22,26 @@ using Matrix = std::vector< std::vector< int > >;
 
 Matrix generateMatrix ( int rows, int cols )
 {
-    Matrix matrix( rows, std::vector<int>(cols, 0) );
+    return Matrix( rows, std::vector<int>(cols, 150) );
+}
+
+std::unique_ptr< Matrix > generateMatrixOnHeap ( int rows, int cols )
+{
+    auto pMatrix = std::make_unique<Matrix>(rows, std::vector<int>(cols, 0));
     for ( int i = 0; i < rows; ++i )
     {
         for ( int j = 0; j < cols; ++j )
         {
-            matrix[i][j] = (i + j) % 256;
+            // matrix[i][j] = ((i + j) * 100) % 256;
+            (*pMatrix)[i][j] = ( i % 2 == 1 && j % 2 == 1 ) ? 150 : 100;
         }
     }
-    return matrix;
+    return pMatrix;
 }
 
-Matrix generateRandomMatrix(int rows, int cols)
+Matrix generateRandomMatrix ( int rows, int cols )
 {
     Matrix matrix(rows, std::vector<int>(cols, 0));
-    // Create a random number generator and a uniform distribution [0, 255].
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dist(0, 255);
@@ -141,6 +147,29 @@ countWithLocalCounter ( const Matrix& matrix, int threshold, int numThreads )
 
 /*----------------------------------------------------------------------------*/
 
+template <typename Func>
+std::vector<std::vector<double>> runBenchmark (
+    int maxThreads, int iterations, int threshold, int rows, int cols,
+    Func benchmarkFunc, const std::string & timerLabel
+)
+{
+    std::vector<std::vector<double>> containerTimes(maxThreads);
+    for (int numThreads = 1; numThreads <= maxThreads; ++numThreads)
+    {
+        for (int iter = 0; iter < iterations; ++iter)
+        {
+            auto pImage = generateMatrix(rows, cols);
+            Timer<std::micro> timer(timerLabel);
+            auto res = benchmarkFunc(pImage, threshold, numThreads);
+            doNotOptimize(res);
+            containerTimes[numThreads - 1].push_back(timer.stop());
+        }
+    }
+    return containerTimes;
+}
+
+/*----------------------------------------------------------------------------*/
+
 double computeStdDev ( std::vector< double > const & values, double avg )
 {
     double sumSq = 0.0;
@@ -150,6 +179,78 @@ double computeStdDev ( std::vector< double > const & values, double avg )
         sumSq += diff * diff;
     }
     return std::sqrt(sumSq / values.size());
+}
+
+void computeStatistics (
+    const std::vector<std::vector<double>>& times,
+    std::vector<double>& avg,
+    std::vector<double>& stdDev,
+    int iterations)
+{
+    int maxThreads = static_cast<int>(times.size());
+    avg.resize(maxThreads, 0.0);
+    stdDev.resize(maxThreads, 0.0);
+
+    for (int i = 0; i < maxThreads; ++i)
+    {
+        double sum = 0.0;
+        for (double t : times[i])
+            sum += t;
+        avg[i] = sum / iterations;
+        stdDev[i] = computeStdDev(times[i], avg[i]);
+    }
+}
+
+/*----------------------------------------------------------------------------*/
+
+void writeResultsToCSV (
+    const std::string& arch,
+    const std::vector<double>& containerAvg,
+    const std::vector<double>& containerStd,
+    const std::vector<double>& localAvg,
+    const std::vector<double>& localStd)
+{
+    std::string filename = "benchmarks_" + arch + ".csv";
+    std::ofstream ofs(filename);
+    if ( !ofs )
+    {
+        std::cerr
+            << "Error: cannot open file " << filename << " for writing.\n"
+        ;
+        return;
+    }
+
+    int maxThreads = static_cast<int>(containerAvg.size());
+
+    // Write CSV header
+    ofs << "ThreadCount";
+    for (int t = 1; t <= maxThreads; ++t)
+        ofs << "," << t;
+    ofs << "\n";
+
+    // Write rows for each metric.
+    ofs << "ContainerAvg";
+    for (double v : containerAvg)
+        ofs << "," << v;
+    ofs << "\n";
+
+    ofs << "ContainerStd";
+    for (double v : containerStd)
+        ofs << "," << v;
+    ofs << "\n";
+
+    ofs << "LocalCounterAvg";
+    for (double v : localAvg)
+        ofs << "," << v;
+    ofs << "\n";
+
+    ofs << "LocalCounterStd";
+    for (double v : localStd)
+        ofs << "," << v;
+    ofs << "\n";
+
+    ofs.close();
+    std::cout << "Benchmark results written to " << filename << std::endl;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -165,109 +266,37 @@ void runBenchmarks (
     ,   int cols = 1000
 )
 {
-    std::vector<std::vector<double>> containerTimes(maxThreads); // index 0 corresponds to 1 thread, etc.
-    std::vector<std::vector<double>> localTimes(maxThreads);
+    // Run benchmarks.
+    auto containerTimes = runBenchmark(
+        maxThreads, iterations, threshold, rows, cols,
+        countWithContainer, "countWithContainer"
+    );
 
+    auto localTimes = runBenchmark(
+        maxThreads, iterations, threshold, rows, cols,
+        countWithLocalCounter, "countWithLocalCounter"
+    );
 
-    for (int numThreads = 1; numThreads <= maxThreads; ++numThreads)
-    {
-        for (int iter = 0; iter < iterations; ++iter)
-        {
-            {
-                Matrix image = generateRandomMatrix(rows, cols);
-                Timer< std::micro > timer("countWithContainer");
+    // Compute statistics.
+    std::vector<double> containerAvg, containerStd;
+    std::vector<double> localAvg, localStd;
+    computeStatistics(containerTimes, containerAvg, containerStd, iterations);
+    computeStatistics(localTimes, localAvg, localStd, iterations);
 
-                auto res = countWithContainer(image, threshold, numThreads);
-                doNotOptimize(res);
-
-                auto t = timer.stop();
-                containerTimes[ numThreads - 1 ].push_back( t );
-            }
-            {
-                Matrix image = generateRandomMatrix(1000, 1000);
-                Timer< std::micro > timer("countWithLocalCounter");
-
-                auto res = countWithLocalCounter(image, threshold, numThreads);
-                doNotOptimize(res);
-
-                auto t = timer.stop();
-                localTimes[ numThreads - 1 ].push_back( t );
-            }
-        }
-    }
-
-    // Prepare vectors to store averages and standard deviations.
-    std::vector<double> containerAvg(maxThreads, 0.0);
-    std::vector<double> containerStd(maxThreads, 0.0);
-    std::vector<double> localAvg(maxThreads, 0.0);
-    std::vector<double> localStd(maxThreads, 0.0);
-
-    for (int i = 0; i < maxThreads; ++i)
-    {
-        double sumC = 0.0;
-        for (double t : containerTimes[i])
-            sumC += t;
-        containerAvg[i] = sumC / iterations;
-        containerStd[i] = computeStdDev(containerTimes[i], containerAvg[i]);
-
-        double sumL = 0.0;
-        for (double t : localTimes[i])
-            sumL += t;
-        localAvg[i] = sumL / iterations;
-        localStd[i] = computeStdDev(localTimes[i], localAvg[i]);
-    }
-
-    // Construct output filename based on processor architecture.
-    std::string arch = "MacOsM1";
-    std::string filename = "benchmarks_" + arch + ".csv";
-    std::ofstream ofs(filename);
-    if (!ofs) {
-        std::cerr << "Error: cannot open file " << filename << " for writing.\n";
-        return;
-    }
-
-    // Write CSV file.
-    // Header row: ThreadCount,1,2,...,maxThreads
-    ofs << "ThreadCount";
-    for (int t = 1; t <= maxThreads; ++t)
-        ofs << "," << t;
-    ofs << "\n";
-
-    // Row for ContainerAvg.
-    ofs << "ContainerAvg";
-    for (double v : containerAvg)
-        ofs << "," << v;
-    ofs << "\n";
-
-    // Row for ContainerStd.
-    ofs << "ContainerStd";
-    for (double v : containerStd)
-        ofs << "," << v;
-    ofs << "\n";
-
-    // Row for LocalCounterAvg.
-    ofs << "LocalCounterAvg";
-    for (double v : localAvg)
-        ofs << "," << v;
-    ofs << "\n";
-
-    // Row for LocalCounterStd.
-    ofs << "LocalCounterStd";
-    for (double v : localStd)
-        ofs << "," << v;
-    ofs << "\n";
-
-    ofs.close();
-    std::cout << "Benchmark results written to " << filename << std::endl;
+    // Write results.
+    std::string arch = "MacOsM1"; // TODO: determine automaticlly.
+    writeResultsToCSV(arch, containerAvg, containerStd, localAvg, localStd);
 }
+
+/*----------------------------------------------------------------------------*/
 
 int main ( int argc, char* argv[] )
 {
     const int defaultRows = 1000;
     const int defaultCols = 1000;
     const int defaultMaxThreads = 30;
-    const int threshold = 128;  // Hardcoded threshold.
-    const int iterations = 20;  // Hardcoded number of iterations per thread count.
+    const int threshold = 128;
+    const int defaultIterations = 5;
 
     // Check if benchmark mode is requested.
     if (argc > 1 && std::string(argv[1]) == "benchmark" )
@@ -276,22 +305,32 @@ int main ( int argc, char* argv[] )
         int maxThreads = defaultMaxThreads;
         int rows = defaultRows;
         int cols = defaultCols;
+        int iterations = defaultIterations;
 
         // Parse named parameters.
         for (int i = 2; i < argc; ++i)
         {
             std::string arg = argv[i];
-            if (arg == "--threads" && (i + 1) < argc)
+            if ( arg == "--threads" && (i + 1) < argc )
             {
                 maxThreads = std::stoi(argv[++i]);
             }
-            else if (arg == "--rows" && (i + 1) < argc)
+            else if ( arg == "--rows" && (i + 1) < argc )
             {
                 rows = std::stoi(argv[++i]);
             }
             else if ( arg == "--cols" && (i + 1) < argc )
             {
                 cols = std::stoi(argv[++i]);
+            }
+            else if ( arg == "--rowscols" && (i + 1) < argc )
+            {
+                rows = std::stoi(argv[++i]);
+                cols = std::stoi(argv[i]);
+            }
+            else if ( arg == "--iterations" && (i + 1) < argc )
+            {
+                iterations = std::stoi(argv[++i]);
             }
         }
 
