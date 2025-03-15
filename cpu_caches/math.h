@@ -1,6 +1,7 @@
 #ifndef __CPU_CACHES__MATH_H__
 #define __CPU_CACHES__MATH_H__
 
+#include <cmath>
 #include <vector>
 
 /*----------------------------------------------------------------------------*/
