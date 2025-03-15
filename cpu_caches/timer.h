@@ -20,19 +20,19 @@ struct ratio_repr
 template <>
 struct ratio_repr< std::nano >
 {
-    static constexpr auto value = "nanoseconds";
+    static constexpr auto value = "ns";
 };
 
 template <>
 struct ratio_repr< std::milli >
 {
-    static constexpr auto value = "milliseconds";
+    static constexpr auto value = "ms";
 };
 
 template <>
 struct ratio_repr< std::micro >
 {
-    static constexpr auto value = "microseconds";
+    static constexpr auto value = "us";
 };
 
 } // namespace
@@ -47,6 +47,16 @@ public:
     using Clock = std::chrono::high_resolution_clock;
     using CurrentClock = decltype( std::chrono::high_resolution_clock::now() );
     using Duration = std::chrono::duration< double, _RatioT >;
+
+    const char* getUnit () const
+    {
+        return ratio_repr<_RatioT>::value;
+    }
+
+    static const char* unit ()
+    {
+        return ratio_repr<_RatioT>::value;
+    }
 
     Timer ( std::string const & _title )
         :   m_title( _title )
