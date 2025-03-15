@@ -1,3 +1,4 @@
+#include "math.h"
 #include "timer.h"
 
 #include <algorithm>
@@ -169,17 +170,6 @@ std::vector<std::vector<double>> runBenchmark (
 }
 
 /*----------------------------------------------------------------------------*/
-
-double computeStdDev ( std::vector< double > const & values, double avg )
-{
-    double sumSq = 0.0;
-    for ( double v : values )
-    {
-        double diff = v - avg;
-        sumSq += diff * diff;
-    }
-    return std::sqrt(sumSq / values.size());
-}
 
 void computeStatistics (
     const std::vector<std::vector<double>>& times,
