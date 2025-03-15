@@ -18,6 +18,15 @@ The `cpu_caches` module contains benchmarks and research exploring CPU cache beh
 
 More cache-specific examples and experiments will be added in the future to broaden the research in this module.
 
+## Search Benchmarks
+
+The `search_benchmarks.cpp` file is a benchmarking tool that evaluates the performance of three search methods on a sorted dataset. It compares:
+
+- **Linear Search:** Iterates sequentially through the array to find the target element.
+- **Binary Search:** Uses a divide-and-conquer approach to locate the target element in logarithmic time.
+- **Set Lookup:** Uses a `std::set` (an ordered tree structure) for searching, which typically suffers from poor cache locality due to pointer chasing.
+
+Check the file **search_benchmarks.cpp** for more information.
 
 ## Getting Started
 
