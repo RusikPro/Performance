@@ -34,7 +34,7 @@ using TimerType = Timer<std::nano>;
 
 constexpr ElementType keyTransform ( ElementType const & _key )
 {
-    return _key / 2 - 1;
+    return _key;
 }
 
 constexpr int ITERATIONS = 30;
@@ -46,6 +46,8 @@ static std::vector<ElementType> SIZES =
         2000000, 3000000
     }
 ;
+
+constexpr size_t ARRAY_SIZE = 50;
 
 /*----------------------------------------------------------------------------*/
 
@@ -109,7 +111,7 @@ int binarySearch ( const std::vector<ElementType>& data, ElementType key )
 /*----------------------------------------------------------------------------*/
 
 template <typename SearchFunc>
-std::vector<double> runBenchmark (
+std::vector<double> runBenchmarkVec (
     SearchFunc searchFunction,
     int size,
     int iterations
@@ -149,6 +151,51 @@ std::vector<double> runBenchmarkSet(
     {
         TimerType timer("Set lookup iteration");
         auto result = s.find(key);
+        doNotOptimize(result);
+        double duration = timer.stop();
+        times.push_back(duration);
+    }
+    return times;
+}
+
+/*----------------------------------------------------------------------------*/
+
+
+// Benchmarking linear search on an std::array.
+template <size_t N>
+std::array<ElementType, N> generateSortedArray ()
+{
+    std::array<ElementType, N> arr{};
+    for (size_t i = 0; i < N; ++i)
+    {
+        arr[i] = i;
+    }
+    return arr;
+}
+
+template <size_t N>
+int linearSearchArray ( const std::array<ElementType, N>& arr, ElementType key )
+{
+    for (size_t i = 0; i < N; ++i)
+    {
+        if (arr[i] == key)
+            return static_cast<int>(i);
+    }
+    return -1;
+}
+
+// Run benchmark for linear search on an std::array.
+std::vector<double> runBenchmarkArrayLinear ( int iterations )
+{
+    constexpr size_t N = ARRAY_SIZE;
+    std::array<ElementType, N> arr = generateSortedArray<N>();
+    ElementType key = arr[N - 1]; // Worst-case scenario.
+    std::vector<double> times;
+    times.reserve(iterations);
+    for (int i = 0; i < iterations; ++i)
+    {
+        TimerType timer("Array linear search iteration");
+        int result = linearSearchArray(arr, key);
         doNotOptimize(result);
         double duration = timer.stop();
         times.push_back(duration);
@@ -226,7 +273,7 @@ void runSearchBenchmarks (
         int key = keyTransform( data.back() );
 
         // Run linear search benchmark.
-        auto linearTimes = runBenchmark(linearSearch, key, iterations);
+        auto linearTimes = runBenchmarkVec(linearSearch, key, iterations);
         double sumLinear = 0.0;
         for (auto t : linearTimes) sumLinear += t;
         double avgLinear = sumLinear / linearTimes.size();
@@ -235,7 +282,7 @@ void runSearchBenchmarks (
         results.linearStd[i] = stdLinear;
 
         // Run binary search benchmark.
-        auto binaryTimes = runBenchmark(binarySearch, key, iterations);
+        auto binaryTimes = runBenchmarkVec(binarySearch, key, iterations);
         double sumBinary = 0.0;
         for (auto t : binaryTimes) sumBinary += t;
         double avgBinary = sumBinary / binaryTimes.size();
@@ -260,6 +307,26 @@ void runSearchBenchmarks (
                 << " | Binary Avg: " << avgBinary << TimerType::unit() << "\n"
         ;
     }
+}
+
+/*----------------------------------------------------------------------------*/
+
+void runArrayBenchmark ( int iterations )
+{
+    std::cout
+        << "\nBenchmarking linear search on std::array (size "
+        << ARRAY_SIZE << ")...\n"
+    ;
+    auto arrayTimes = runBenchmarkArrayLinear(iterations);
+    double sumArray = 0.0;
+    for (auto t : arrayTimes) { sumArray += t; }
+    double avgArray = sumArray / arrayTimes.size();
+    double stdArray = computeStdDev(arrayTimes, avgArray);
+    std::cout
+        << "Array (std::array) linear search benchmark for size " << ARRAY_SIZE
+        << " | Avg: " << avgArray << TimerType::unit()
+        << " | Std: " << stdArray << TimerType::unit() << "\n"
+    ;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -302,6 +369,9 @@ int main ( int argc, char* argv[] )
     // Write results to CSV.
     std::string filename = "search_benchmarks.csv";
     writeResultsToCSV(filename, sizes, results);
+
+
+    runArrayBenchmark( iterations );
 
     return 0;
 }
