@@ -29,23 +29,26 @@
 
 /*----------------------------------------------------------------------------*/
 
-using ElementType = unsigned long long;
+using ElementType = long long;
 using TimerType = Timer<std::nano>;
 
 constexpr ElementType keyTransform ( ElementType const & _key )
 {
-    return _key;
+    return _key * 0.5;
 }
 
 constexpr int ITERATIONS = 30;
+
 static std::vector<ElementType> SIZES =
-    {
-        10, 20, 30, 40, 50, 60, 70, 80, 90,
-        100, 200, 300, 400, 500, 600, 700, 800, 900,
-        1000, 5000, 10000, 50000, 100000, 500000, 1000000,
-        2000000, 3000000
-    }
-;
+{
+    10, 20, 50,
+    100, 200, 500,
+    1000, 2000, 5000,
+    10000, 20000, 50000,
+    100000, 200000, 500000
+};
+
+constexpr int SIZE_FACTOR = 1;
 
 constexpr size_t ARRAY_SIZE = 50;
 
@@ -270,6 +273,12 @@ void runSearchBenchmarks (
 
         // Prepare data for vector-based searches.
         std::vector<ElementType> data = generateSortedVector(size);
+
+        for ( int i = 0; i < data.size(); ++i )
+        {
+            doNotOptimize( data[ i ] );
+        }
+
         int key = keyTransform( data.back() );
 
         // Run linear search benchmark.
@@ -334,7 +343,11 @@ void runArrayBenchmark ( int iterations )
 int main ( int argc, char* argv[] )
 {
     auto iterations = ITERATIONS;
+    auto sizeFactor = SIZE_FACTOR;
+
     std::vector< ElementType > sizes = SIZES;
+
+
     for (int i = 1; i < argc; ++i)
     {
         std::string arg = argv[i];
@@ -352,7 +365,17 @@ int main ( int argc, char* argv[] )
                 sizes.push_back(s);
             }
         }
+        else if (arg == "--factor" && (i + 1) < argc)
+        {
+            sizeFactor = std::stoi(argv[++i]);
+        }
     }
+
+    std::transform(
+        sizes.begin(), sizes.end(), sizes.begin(),
+        [ & ] ( ElementType x ) { return x * sizeFactor; }
+    );
+
 
     std::cout << "Running search benchmarks with iterations=" << iterations << "\n";
     std::cout << "Sizes to test: ";
