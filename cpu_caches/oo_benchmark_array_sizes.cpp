@@ -1,4 +1,6 @@
 #include "timer.h"
+
+#include <cmath>
 #include <iostream>
 #include <vector>
 #include <cstdlib>
