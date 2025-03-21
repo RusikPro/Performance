@@ -77,8 +77,10 @@ void benchmarkDataOriented ( size_t count, size_t iterations )
     double elapsed = 0.0;
     {
         TimerType timer("Data Oriented Update");
-        for (size_t iter = 0; iter < iterations; ++iter) {
-            for (size_t i = 0; i < count; ++i) {
+        for (size_t iter = 0; iter < iterations; ++iter)
+        {
+            for (size_t i = 0; i < count; ++i)
+            {
                 posX[i] += velX[i] * 0.016f;
                 posY[i] += velY[i] * 0.016f;
                 posX[i] *= 1.000001;
@@ -95,12 +97,15 @@ void benchmarkDataOriented ( size_t count, size_t iterations )
     std::cout << "DO Accumulator: " << accumulator << std::endl;
 }
 
-int main() {
+int main ()
+{
     const size_t count = 1000000;
     const size_t iterations = 100;
 
     benchmarkObjectOriented(count, iterations);
     benchmarkDataOriented(count, iterations);
+
+    std::cout << sizeof( Entity ) << std::endl;
 
     return 0;
 }
