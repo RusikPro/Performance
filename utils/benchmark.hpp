@@ -99,12 +99,12 @@ template <
     ,   typename _BenchmarkFuncT
     ,   typename... _ArgsT
 >
-std::vector<double> runBenchmark (
+std::vector< std::vector<double> > runBenchmark (
     int paramStart, int paramEnd, int paramStep, int iterations,
     _BenchmarkFuncT func, _ArgsT &&... args
 )
 {
-    std::vector< double > averages;
+    std::vector< std::vector<double> > allIterationTimes;
     for ( int param = paramStart; param <= paramEnd; param += paramStep )
     {
         std::vector< double > iterationTimes;
@@ -118,10 +118,9 @@ std::vector<double> runBenchmark (
             doNotOptimize(result);
             iterationTimes.push_back(timer.stop());
         }
-        double avg = calculateAverage( iterationTimes );
-        averages.push_back(avg);
+        allIterationTimes.push_back(iterationTimes);
     }
-    return averages;
+    return allIterationTimes;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -142,12 +141,12 @@ template <
     ,   typename _BenchmarkFuncT
     ,   typename... _ArgsT
 >
-std::vector<double> runBenchmarkWithPreCalc(
+std::vector< std::vector<double> > runBenchmarkWithPreCalc(
     int paramStart, int paramEnd, int paramStep, int iterations,
     _PreCalcFuncT preCalc, _BenchmarkFuncT func, _ArgsT &&... args
 )
 {
-    std::vector< double > averages;
+    std::vector< std::vector<double> > allIterationTimes;
     for ( int param = paramStart; param <= paramEnd; param += paramStep )
     {
         // Pre-calculate data based on the current parameter value.
@@ -165,10 +164,9 @@ std::vector<double> runBenchmarkWithPreCalc(
             doNotOptimize(result);
             iterationTimes.push_back(timer.stop());
         }
-        double avg = calculateAverage( iterationTimes );
-        averages.push_back(avg);
+        allIterationTimes.push_back(iterationTimes);
     }
-    return averages;
+    return allIterationTimes;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -200,13 +198,11 @@ might prepare a matrix that will then be used in the benchmark function.
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
 
-/*----------------------------------------------------------------------------*/
-
 template < typename _TimerT >
 void printBenchmarkStats (
-        std::ostream & out
-    ,   std::string const & label
-    ,   std::vector< double > const & iterationTimes
+    std::ostream & out,
+    std::string const & label,
+    std::vector<double> const & iterationTimes
 )
 {
     double average = calculateAverage( iterationTimes );
@@ -214,24 +210,26 @@ void printBenchmarkStats (
     out << label << " Benchmark: "
         << "Average time: " << average << " " << _TimerT::unit()
         << ", StdDev: " << stddev << " " << _TimerT::unit()
-        << std::endl;
+        << std::endl
+    ;
 }
 
-/*----------------------------------------------------------------------------*/
-
+/*
+Print statistics for a list of iteration times (vector of vectors).
+For each inner vector, print the average and deviation.
+*/
 template < typename _TimerT >
 void printBenchmarkStatsList (
-        std::ostream & out
-    ,   std::string const & label
-    ,   std::vector< double > const & averages
+    std::ostream & out,
+    std::string const & label,
+    std::vector< std::vector<double> > const & allIterationTimes
 )
 {
-    out << label << " Benchmark Averages:" << std::endl;
-    for ( std::size_t i = 0; i < averages.size(); ++i )
+    out << label << " Benchmark Results:" << std::endl;
+    for ( std::size_t i = 0; i < allIterationTimes.size(); ++i )
     {
-        out << "Iteration " << i << ": " << averages[i] << " "
-            << _TimerT::unit() << std::endl
-        ;
+        out << "Parameter value index " << i << ": ";
+        printBenchmarkStats<_TimerT>( out, "", allIterationTimes[i] );
     }
 }
 
