@@ -108,12 +108,19 @@ Located under `cpu_caches/`, this module explores CPU cache behavior, multi-thre
 ```
 Performance/
 ├── cpu_caches/
-│   ├── parallel_chunks.cpp              # C++ benchmark code
-│   ├── timer.h                          # Timer utility header
-│   |── plot_parallel_chunks_results.py  # Python plotting script for averages and standard deviations
-|   |── plot_averages.py                 # Python plotting script only for averages
-|   └── plot_stds.py                     # Python plotting script only for standard deviations
-└── README.md                            # This file
+│   ├── parallel_chunks.cpp
+│   ├── object_data_oriented.cpp
+│   ├── oo_benchmark_array_sizes.cpp
+│   ├── search_benchmarks.cpp
+│   ├── timer.h
+│   ├── benchmark.hpp
+│   ├── plot_parallel_chunks_results.py
+│   ├── plot_search_benchmarks.py
+│   ├── plot_averages.py
+│   ├── plot_stds.py
+│   ├── benchmarks_MacOsM1.csv        # Example CSV output
+│   └── ...
+└── README.md
 ```
 
 ## Future Work
