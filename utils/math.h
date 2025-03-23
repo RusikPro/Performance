@@ -17,7 +17,7 @@ double calculateAverage ( std::vector< double > const & times )
     return sum / times.size();
 }
 
-// Helper: Calculate standard deviation (if needed).
+// Helper: Calculate standard deviation.
 double calculateStdDev ( std::vector< double>  const & times, double avg )
 {
     double sumSq = 0.0;

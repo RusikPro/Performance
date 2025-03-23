@@ -295,7 +295,7 @@ void runSearchBenchmarks (
         double sumBinary = 0.0;
         for (auto t : binaryTimes) sumBinary += t;
         double avgBinary = sumBinary / binaryTimes.size();
-        double stdBinary = computeStdDev(binaryTimes, avgBinary);
+        double stdBinary = calculateStdDev(binaryTimes, avgBinary);
         results.binaryAvg[i] = avgBinary;
         results.binaryStd[i] = stdBinary;
 
@@ -306,7 +306,7 @@ void runSearchBenchmarks (
         double sumSet = 0.0;
         for (auto t : setTimes) sumSet += t;
         double avgSet = sumSet / setTimes.size();
-        double stdSet = computeStdDev(setTimes, avgSet);
+        double stdSet = calculateStdDev(setTimes, avgSet);
         results.setLookupAvg[i] = avgSet;
         results.setLookupStd[i] = stdSet;
 
