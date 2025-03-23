@@ -9,12 +9,14 @@
 using TimerType = Timer< std::milli >;
 using DataType = double;
 
+constexpr int DUMMY_SIZE = 16;
+
 // Object oriented design: each entity encapsulates its data and update method.
 struct Entity
 {
     DataType x, y;
     DataType vx, vy;
-    DataType dummy[8];  // Extra data that is not used in the update.
+    DataType dummy[ DUMMY_SIZE ];  // Extra data that is not used in the update.
 
     void update(DataType dt)
     {
