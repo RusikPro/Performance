@@ -1,5 +1,5 @@
-#ifndef __TIMER_H__
-#define __TIMER_H__
+#ifndef __UTILS__TIMER_H__
+#define __UTILS__TIMER_H__
 
 /*----------------------------------------------------------------------------*/
 
@@ -44,6 +44,7 @@ class Timer {
 
 public:
 
+    using Ratio = _RatioT;
     using Clock = std::chrono::high_resolution_clock;
     using CurrentClock = decltype( std::chrono::high_resolution_clock::now() );
     using Duration = std::chrono::duration< double, _RatioT >;
@@ -102,4 +103,4 @@ private:
 
 /*----------------------------------------------------------------------------*/
 
-#endif  //  __TIMER_H__
+#endif  //  __UTILS__TIMER_H__

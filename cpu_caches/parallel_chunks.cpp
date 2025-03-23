@@ -1,5 +1,4 @@
-#include "math.h"
-#include "timer.h"
+#include "../utils/benchmark.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -175,7 +174,8 @@ void computeStatistics (
     const std::vector<std::vector<double>>& times,
     std::vector<double>& avg,
     std::vector<double>& stdDev,
-    int iterations)
+    int iterations
+)
 {
     int maxThreads = static_cast<int>(times.size());
     avg.resize(maxThreads, 0.0);
@@ -187,7 +187,7 @@ void computeStatistics (
         for (double t : times[i])
             sum += t;
         avg[i] = sum / iterations;
-        stdDev[i] = computeStdDev(times[i], avg[i]);
+        stdDev[i] = calculateStdDev(times[i], avg[i]);
     }
 }
 

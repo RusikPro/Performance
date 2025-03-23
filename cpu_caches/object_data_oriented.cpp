@@ -1,8 +1,10 @@
-#include "timer.h"
+#include "../utils/benchmark.hpp"
 
 #include <iostream>
 #include <vector>
 #include <cstdlib>
+
+/*----------------------------------------------------------------------------*/
 
 using TimerType = Timer< std::milli >;
 using DataType = double;
@@ -23,11 +25,12 @@ struct Entity
     }
 };
 
+/*----------------------------------------------------------------------------*/
+
 void benchmarkObjectOriented ( size_t count, size_t iterations )
 {
     std::vector<Entity> entities(count);
 
-    // Initialize entities with random values.
     for (size_t i = 0; i < count; ++i) {
         entities[i].x = static_cast<DataType>(rand()) / RAND_MAX;
         entities[i].y = static_cast<DataType>(rand()) / RAND_MAX;
@@ -35,28 +38,27 @@ void benchmarkObjectOriented ( size_t count, size_t iterations )
         entities[i].vy = static_cast<DataType>(rand()) / RAND_MAX;
     }
 
-    // Use a volatile accumulator to ensure the work isn't optimized away.
-    volatile DataType accumulator = 0;
-
-    double elapsed = 0.0;
-    {
-        TimerType timer("Object Oriented Update");
-        for (size_t iter = 0; iter < iterations; ++iter) {
-            for (size_t i = 0; i < count; ++i)
-            {
-                entities[i].update(0.016f);  // Assume dt ~ 16ms (60fps)
-                accumulator += entities[i].x;
-            }
+    auto benchFunc = [ &entities, count ] ( int i ) -> DataType {
+        int elements = count + count * i;
+        volatile DataType accumulator = 0;
+        for ( std::size_t i = 0; i < elements; ++i )
+        {
+            entities[i].update( 0.016f ); // Assume dt ~ 16ms (60fps)
+            accumulator += entities[i].x;
         }
-        elapsed = timer.stop();
-    }
+        return accumulator;
+    };
 
-    std::cout
-        << "Object Oriented Benchmark: " << elapsed << " "
-        << TimerType::unit() << std::endl
-    ;
-    std::cout << "OO Accumulator: " << accumulator << std::endl;
+    auto iterationsTimes = runBenchmark< TimerType::Ratio >(
+        0, 0, 1, iterations, benchFunc
+    );
+
+    printBenchmarkStats< TimerType >(
+        std::cout, "Object Oriented", iterationsTimes
+    );
 }
+
+/*----------------------------------------------------------------------------*/
 
 void benchmarkDataOriented ( size_t count, size_t iterations )
 {
@@ -65,37 +67,38 @@ void benchmarkDataOriented ( size_t count, size_t iterations )
     std::vector<DataType> velX(count);
     std::vector<DataType> velY(count);
 
-    // Initialize arrays with random values.
-    for (size_t i = 0; i < count; ++i) {
+    for ( std::size_t i = 0; i < count; ++i )
+    {
         posX[i] = static_cast<DataType>(rand()) / RAND_MAX;
         posY[i] = static_cast<DataType>(rand()) / RAND_MAX;
         velX[i] = static_cast<DataType>(rand()) / RAND_MAX;
         velY[i] = static_cast<DataType>(rand()) / RAND_MAX;
     }
 
-    volatile DataType accumulator = 0;
-    double elapsed = 0.0;
+    auto benchFunc = [ &posX, &posY, &velX, &velY, count ] ( int ) -> DataType
     {
-        TimerType timer("Data Oriented Update");
-        for (size_t iter = 0; iter < iterations; ++iter)
+        volatile DataType accumulator = 0;
+        for ( std::size_t i = 0; i < count; ++i )
         {
-            for (size_t i = 0; i < count; ++i)
-            {
-                posX[i] += velX[i] * 0.016f;
-                posY[i] += velY[i] * 0.016f;
-                posX[i] *= 1.000001;
-                posY[i] *= 1.000001;
-                accumulator += posX[i];
-            }
+            posX[i] += velX[i] * 0.016f;
+            posY[i] += velY[i] * 0.016f;
+            posX[i] *= 1.000001;
+            posY[i] *= 1.000001;
+            accumulator += posX[i];
         }
-        elapsed = timer.stop();
-    }
-    std::cout
-        << "Data Oriented Benchmark: " << elapsed << " " << TimerType::unit()
-        << std::endl
-    ;
-    std::cout << "DO Accumulator: " << accumulator << std::endl;
+        return accumulator;
+    };
+
+    auto iterationsTimes = runBenchmark< TimerType::Ratio >(
+        0, 0, 1, iterations, benchFunc
+    );
+
+    printBenchmarkStats< TimerType >(
+        std::cout, "Object Oriented", iterationsTimes
+    );
 }
+
+/*----------------------------------------------------------------------------*/
 
 int main ()
 {
@@ -109,3 +112,5 @@ int main ()
 
     return 0;
 }
+
+/*----------------------------------------------------------------------------*/

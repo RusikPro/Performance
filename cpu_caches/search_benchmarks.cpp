@@ -14,8 +14,8 @@
  * Adjust or extend the sizes as needed.
 */
 
-#include "math.h"
-#include "timer.h"
+#include "../utils/math.h"
+#include "../utils/timer.h"
 
 #include <algorithm>
 #include <chrono>
@@ -286,7 +286,7 @@ void runSearchBenchmarks (
         double sumLinear = 0.0;
         for (auto t : linearTimes) sumLinear += t;
         double avgLinear = sumLinear / linearTimes.size();
-        double stdLinear = computeStdDev(linearTimes, avgLinear);
+        double stdLinear = calculateStdDev(linearTimes, avgLinear);
         results.linearAvg[i] = avgLinear;
         results.linearStd[i] = stdLinear;
 
@@ -330,7 +330,7 @@ void runArrayBenchmark ( int iterations )
     double sumArray = 0.0;
     for (auto t : arrayTimes) { sumArray += t; }
     double avgArray = sumArray / arrayTimes.size();
-    double stdArray = computeStdDev(arrayTimes, avgArray);
+    double stdArray = calculateStdDev(arrayTimes, avgArray);
     std::cout
         << "Array (std::array) linear search benchmark for size " << ARRAY_SIZE
         << " | Avg: " << avgArray << TimerType::unit()
